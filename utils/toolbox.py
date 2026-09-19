@@ -310,9 +310,57 @@ def armed(
     scf.cf.supervisor.send_arming_request(True)
     time.sleep(settle_s)
 
+    log_flight("Unlocking motor lock [...]")
+    scf.cf.commander.send_setpoint(0.0, 0.0, 0.0, 0)
+    time.sleep(0.1)
+
     try:
         yield
     finally:
-        log_flight("Disarming [...]")
-        scf.cf.supervisor.send_arming_request(False)
-        time.sleep(0.1)
+        protocol_version = scf.cf.platform.get_protocol_version()
+
+        if protocol_version >= 12:
+            log_flight("Disarming [...]")
+            scf.cf.supervisor.send_arming_request(False)
+        else:
+            log_flight("Legacy firmware: skipping explicit disarm.")
+
+
+def log_diagnostic(message: str) -> None:
+    """Print a consistently formatted diagnostic log message."""
+    print(f"[diagnostic]\t{message}")
+
+
+@contextmanager
+def diagnostic_connection(
+    uri: str | None = None,
+    *,
+    require_flow_deck: bool = False,
+) -> Iterator[SyncCrazyflie]:
+    """Open a checked radio connection for a non-flight diagnostic demo.
+
+    Diagnostic demos reuse the radio, protocol and optional Flow Deck checks but
+    do not require a flight-ready battery voltage and do not print the physical
+    flight checklist.
+    """
+    with preflight_connection(
+        uri,
+        require_flow_deck=require_flow_deck,
+        min_battery_v=None,
+        show_physical_checklist=False,
+    ) as scf:
+        yield scf
+
+
+def run_demo(main) -> None:
+    """Run a demo entry point with consistent user-facing error handling."""
+    try:
+        main()
+    except PreflightError as exc:
+        print()
+        log_preflight(f"FAILED: {exc}")
+        raise SystemExit(1) from exc
+    except KeyboardInterrupt:
+        print()
+        log_flight("Interrupted by user.")
+        raise SystemExit(130)
