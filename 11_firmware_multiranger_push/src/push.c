@@ -44,12 +44,12 @@ static const uint16_t stoppedTh = 500;
 
 static const float velMax = 1.0f;
 static const uint16_t radius = 300;
-static const float height_sp = 0.8f;        // Hover height in meters
-static const float landingStartH = 0.25f;   // Automatic landing triggers below this height
+static const float height_sp = 0.5f;        // Hover height in meters
+static const float landingStartH = 0.20f;   // Automatic landing triggers below this height
 static const float landingEndH = 0.02f;     // Final target height before shutting off motors (2 cm)
-static const float landingStep = 0.002f;    // 0.002 m every 10 ms = 0.2 m/s (matches MotionCommander.land)
+static const float landingStep = 0.0015f;   // 0.0015 m every 10 ms = 0.15 m/s
 
-static float current_height = 0.8f;
+static float current_height = 0.65f;
 static uint16_t landingTimeout = 0;
 
 #define MAX(a,b) ((a>b)?a:b)
