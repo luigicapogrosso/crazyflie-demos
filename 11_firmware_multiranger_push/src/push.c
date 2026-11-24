@@ -44,6 +44,7 @@ static const uint16_t stoppedTh = 500;
 static const float velMax = 1.0f;
 static const uint16_t radius = 300;
 static const float height_sp = 0.8f; // Takeoff/hover height in meters
+static float current_height = 0.8f;
 
 #define MAX(a,b) ((a>b)?a:b)
 #define MIN(a,b) ((a<b)?a:b)
@@ -93,15 +94,16 @@ void appMain()
       float b_comp = back_o * factor;
       float velFront = b_comp + f_comp;
 
-      uint16_t up_o = radius - MIN(up, radius);
-      float height = height_sp - up_o / 1000.0f;
+      if (up > 0 && up < radius) {
+        current_height -= 0.004f; // Descends at ~0.4 m/s while hand is above
+      }
 
-      if (height < 0.1f) {
+      if (current_height < 0.1f) {
         state = stopping;
         DEBUG_PRINT("Landing...\n");
       }
 
-      setHoverSetpoint(&setpoint, velFront, velSide, height, 0);
+      setHoverSetpoint(&setpoint, velFront, velSide, current_height, 0);
       commanderSetSetpoint(&setpoint, 3);
     } else {
       if (state == stopping && up > stoppedTh) {
@@ -116,6 +118,7 @@ void appMain()
 
       if (up > unlockThHigh && state == lowUnlock && positioningInit && multirangerInit) {
         DEBUG_PRINT("Unlocked!\n");
+        current_height = height_sp;
         state = unlocked;
       }
 
