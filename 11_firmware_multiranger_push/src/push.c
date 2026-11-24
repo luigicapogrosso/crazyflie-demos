@@ -32,6 +32,7 @@ typedef enum {
   idle,
   lowUnlock,
   unlocked,
+  landing,
   stopping
 } State;
 
@@ -43,8 +44,13 @@ static const uint16_t stoppedTh = 500;
 
 static const float velMax = 1.0f;
 static const uint16_t radius = 300;
-static const float height_sp = 0.8f; // Takeoff/hover height in meters
+static const float height_sp = 0.8f;        // Hover height in meters
+static const float landingStartH = 0.25f;   // Automatic landing triggers below this height
+static const float landingEndH = 0.02f;     // Final target height before shutting off motors (2 cm)
+static const float landingStep = 0.002f;    // 0.002 m every 10 ms = 0.2 m/s (matches MotionCommander.land)
+
 static float current_height = 0.8f;
+static uint16_t landingTimeout = 0;
 
 #define MAX(a,b) ((a>b)?a:b)
 #define MIN(a,b) ((a<b)?a:b)
@@ -60,6 +66,7 @@ void appMain()
   logVarId_t idRight = logGetVarId("range", "right");
   logVarId_t idFront = logGetVarId("range", "front");
   logVarId_t idBack = logGetVarId("range", "back");
+  logVarId_t idZ = logGetVarId("stateEstimate", "z");
 
   paramVarId_t idPositioningDeck = paramGetVarId("deck", "bcFlow2");
   paramVarId_t idMultiranger = paramGetVarId("deck", "bcMultiranger");
@@ -98,13 +105,35 @@ void appMain()
         current_height -= 0.004f; // Descends at ~0.4 m/s while hand is above
       }
 
-      if (current_height < 0.1f) {
-        state = stopping;
-        DEBUG_PRINT("Landing...\n");
+      if (current_height <= landingStartH) {
+        state = landing;
+        landingTimeout = 0;
+        DEBUG_PRINT("Smooth landing...\n");
       }
 
       setHoverSetpoint(&setpoint, velFront, velSide, current_height, 0);
       commanderSetSetpoint(&setpoint, 3);
+    } else if (state == landing) {
+      float z_est = logGetFloat(idZ);
+
+      if (current_height > landingEndH) {
+        current_height -= landingStep;
+        if (current_height < landingEndH) {
+          current_height = landingEndH;
+        }
+      } else {
+        landingTimeout++;
+      }
+
+      // Shut off motors only when setpoint is at 2 cm and drone is actually close to the ground
+      // (or after ~1 s safety timeout at minimum height)
+      if (current_height <= landingEndH && (z_est < 0.05f || landingTimeout > 100)) {
+        state = stopping;
+        DEBUG_PRINT("Motors off\n");
+      } else {
+        setHoverSetpoint(&setpoint, 0.0f, 0.0f, current_height, 0);
+        commanderSetSetpoint(&setpoint, 3);
+      }
     } else {
       if (state == stopping && up > stoppedTh) {
         state = idle;
@@ -119,6 +148,7 @@ void appMain()
       if (up > unlockThHigh && state == lowUnlock && positioningInit && multirangerInit) {
         DEBUG_PRINT("Unlocked!\n");
         current_height = height_sp;
+        landingTimeout = 0;
         state = unlocked;
       }
 
