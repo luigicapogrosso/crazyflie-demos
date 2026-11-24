@@ -192,3 +192,9 @@ pyrightconfig.json
 .ionide
 
 ### Custom ###
+
+# Crazyflie firmware build artifacts
+**/build/
+**/.config
+**/.config.old
+**/autoconf.h
